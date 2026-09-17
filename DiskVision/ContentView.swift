@@ -13,7 +13,7 @@ struct ContentView: View {
 
                 GeometryReader { geo in
                     ZStack {
-                        Color(red: 0.06, green: 0.06, blue: 0.10).ignoresSafeArea()
+                        Color(red: 0.96, green: 0.96, blue: 0.96).ignoresSafeArea()
 
                         if let root = viewModel.activeRoot {
                             if viewModel.isScanning {
@@ -81,7 +81,7 @@ struct WelcomeView: View {
             Text("DiskVision").font(.system(size: 36, weight: .bold, design: .rounded))
             Text("Visualize your disk usage").font(.title3).foregroundColor(.secondary)
             Spacer()
-        }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(red: 0.06, green: 0.06, blue: 0.10))
+        }.frame(maxWidth: .infinity, maxHeight: .infinity).background(Color(red: 0.96, green: 0.96, blue: 0.96))
     }
 }
 

@@ -29,48 +29,51 @@ class TreemapDrawingView: NSView {
         guard let ctx = NSGraphicsContext.current?.cgContext, let root = root else { return }
         guard viewSize.width > 10, viewSize.height > 10 else { return }
 
-        ctx.setFillColor(NSColor(red: 0.06, green: 0.06, blue: 0.10, alpha: 1).cgColor)
+        // Light background like GrandPerspective
+        ctx.setFillColor(NSColor(red: 0.96, green: 0.96, blue: 0.96, alpha: 1).cgColor)
         ctx.fill(bounds)
 
-        let rect = CGRect(origin: .zero, size: viewSize).insetBy(dx: 4, dy: 4)
+        let rect = CGRect(origin: .zero, size: viewSize).insetBy(dx: 2, dy: 2)
         let colorCtx = ColorContext(maxSize: max(root.totalSize, 1), maxDepth: 5, earliestDate: Date.distantPast, latestDate: Date())
 
         drawNode(root, in: rect, ctx: ctx, colorCtx: colorCtx, depth: 0, index: 0)
     }
 
     private func drawNode(_ node: FileNode, in rect: CGRect, ctx: CGContext, colorCtx: ColorContext, depth: Int, index: Int) {
-        let gap: CGFloat = depth == 0 ? 3 : 1.5
+        let gap: CGFloat = depth == 0 ? 1 : 0.5
         let r = rect.insetBy(dx: gap, dy: gap)
         guard r.width > 0.5, r.height > 0.5 else { return }
 
         let color = colorMapper.color(for: node, context: colorCtx)
-        let radius: CGFloat = depth == 0 ? 10 : 4
-        let path = CGPath(roundedRect: r, cornerWidth: radius, cornerHeight: radius, transform: nil)
+        let path = CGPath(rect: r, transform: nil) // GrandPerspective uses sharp corners
 
         ctx.addPath(path)
-        ctx.setFillColor(color.cgColor ?? CGColor(gray: 0.3, alpha: 1))
+        ctx.setFillColor(color.cgColor ?? CGColor(gray: 0.7, alpha: 1))
         ctx.fillPath()
 
+        // Subtle border like GrandPerspective
         ctx.addPath(path)
-        ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: depth == 0 ? 0.12 : 0.06))
-        ctx.setLineWidth(depth == 0 ? 1.5 : 0.5)
+        ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: depth == 0 ? 0.6 : 0.3))
+        ctx.setLineWidth(depth == 0 ? 1 : 0.5)
         ctx.strokePath()
 
-        if r.width > 50 && r.height > 28 {
-            let fs = min(14, max(9, r.height * 0.13))
-            drawLabel(node.name, in: r, ctx: ctx, fontSize: fs, bold: true, yOffset: r.height * 0.33)
+        // Label if space permits
+        if r.width > 45 && r.height > 20 {
+            let fs = min(12, max(9, r.height * 0.12))
+            drawLabel(node.name, in: r, ctx: ctx, fontSize: fs, bold: true, yOffset: r.height * 0.35)
             let sizeStr = ByteCountFormatter.string(fromByteCount: node.totalSize, countStyle: .file)
-            drawLabel(sizeStr, in: r, ctx: ctx, fontSize: fs * 0.75, bold: false, yOffset: r.height * 0.65)
-        } else if r.width > 26 && r.height > 14 {
-            let fs = min(10, max(7, r.height * 0.38))
-            drawLabel(node.name, in: r, ctx: ctx, fontSize: fs, bold: true, yOffset: r.height * 0.5)
+            drawLabel(sizeStr, in: r, ctx: ctx, fontSize: fs * 0.8, bold: false, yOffset: r.height * 0.65)
+        } else if r.width > 24 && r.height > 12 {
+            let fs = min(9, max(7, r.height * 0.35))
+            drawLabel(node.name, in: r, ctx: ctx, fontSize: fs, bold: false, yOffset: r.height * 0.5)
         }
 
-        if depth < 2 && node.isDirectory && !node.children.isEmpty && r.width > 16 && r.height > 16 {
+        // Recurse for directories
+        if depth < 2 && node.isDirectory && !node.children.isEmpty && r.width > 14 && r.height > 14 {
             let sorted = node.sortedChildren(by: .sizeDesc)
             let childTotal = sorted.reduce(Int64(0)) { $0 + $1.totalSize }
             guard childTotal > 0 else { return }
-            let inner = r.insetBy(dx: 2, dy: 2)
+            let inner = r.insetBy(dx: 1, dy: 1)
             guard inner.width > 2, inner.height > 2 else { return }
             squarify(sorted, total: childTotal, in: inner, ctx: ctx, colorCtx: colorCtx, depth: depth + 1)
         }
@@ -147,13 +150,13 @@ class TreemapDrawingView: NSView {
     }
 
     private func drawLabel(_ text: String, in rect: CGRect, ctx: CGContext, fontSize: CGFloat, bold: Bool, yOffset: CGFloat) {
-        let font = NSFont.systemFont(ofSize: fontSize, weight: bold ? .bold : .regular)
+        let font = NSFont.systemFont(ofSize: fontSize, weight: bold ? .semibold : .regular)
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font,
-            .foregroundColor: NSColor.white
+            .foregroundColor: NSColor.black // Black text for light background
         ]
         let nsStr = text as NSString
-        let labelRect = CGRect(x: rect.minX + 8, y: rect.minY + yOffset - fontSize * 0.5, width: rect.width - 16, height: fontSize * 1.5)
+        let labelRect = CGRect(x: rect.minX + 4, y: rect.minY + yOffset - fontSize * 0.5, width: rect.width - 8, height: fontSize * 1.5)
         nsStr.draw(in: labelRect, withAttributes: attrs)
     }
 }

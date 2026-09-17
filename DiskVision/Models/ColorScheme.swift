@@ -42,9 +42,19 @@ enum ColorPalette: String, CaseIterable, Identifiable {
 
     var colors: [Color] {
         switch self {
-        case .vivid:
-            return [.red, .orange, .yellow, .green, .cyan, .blue, .purple, .pink,
-                    .mint, .teal, .indigo, .brown]
+        case .vivid: // GrandPerspective-inspired warm palette
+            return [
+                Color(red: 0.85, green: 0.35, blue: 0.25), // Warm red
+                Color(red: 0.95, green: 0.55, blue: 0.15), // Orange
+                Color(red: 0.95, green: 0.75, blue: 0.20), // Yellow
+                Color(red: 0.40, green: 0.75, blue: 0.35), // Green
+                Color(red: 0.25, green: 0.65, blue: 0.75), // Teal
+                Color(red: 0.30, green: 0.50, blue: 0.80), // Blue
+                Color(red: 0.55, green: 0.35, blue: 0.70), // Purple
+                Color(red: 0.80, green: 0.40, blue: 0.55), // Pink
+                Color(red: 0.60, green: 0.45, blue: 0.30), // Brown
+                Color(red: 0.50, green: 0.70, blue: 0.45), // Sage
+            ]
         case .pastel:
             return [
                 Color(red: 0.98, green: 0.73, blue: 0.73),
