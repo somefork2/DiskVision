@@ -1,75 +1,73 @@
 import Foundation
-import AppKit
 
-class DiskScanner {
-    var onProgress: ((Double, Int) -> Void)?
+final class DiskScanner {
+    var onProgress: ((Int) -> Void)?
     var onComplete: ((FileNode, ScanResult) -> Void)?
 
     private(set) var rootNode: FileNode?
-    private var isScanning = false
-    private var shouldCancel = false
+    private var scanning = false
+    private var cancelled = false
     private var fileCount = 0
     private var folderCount = 0
-    private var startTime: Date?
-    private var lastEmitTime: Date = .distantPast
-    private var scanTask: Task<Void, Never>?
-    private var accessedURLs: [URL] = []
+    private var startTime = Date()
+    private var lastEmit = Date.distantPast
 
     func scan(url: URL) {
-        guard !isScanning else { return }
-
-        let accessing = url.startAccessingSecurityScopedResource()
-        if accessing { accessedURLs.append(url) }
-
-        isScanning = true
-        shouldCancel = false
+        guard !scanning else { return }
+        scanning = true
+        cancelled = false
         fileCount = 0
         folderCount = 0
         startTime = Date()
-        lastEmitTime = .distantPast
+        lastEmit = Date.distantPast
 
         let root = FileNode(name: url.lastPathComponent, path: url.path, isDirectory: true)
-        rootNode = root
+        self.rootNode = root
 
-        scanTask = Task.detached(priority: .userInitiated) { [weak self] in
-            guard let self = self else { return }
-            await self.scanAsync(root)
-            let duration = Date().timeIntervalSince(self.startTime ?? Date())
-            let result = ScanResult(rootPath: url.path, totalSize: root.totalSize, fileCount: self.fileCount, folderCount: self.folderCount, duration: duration)
-            await MainActor.run {
-                self.isScanning = false
+        let _ = url.startAccessingSecurityScopedResource()
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            self.scanDir(url: url, parent: root)
+
+            let duration = Date().timeIntervalSince(self.startTime)
+            let result = ScanResult(
+                rootPath: url.path,
+                totalSize: root.totalSize,
+                fileCount: self.fileCount,
+                folderCount: self.folderCount,
+                duration: duration
+            )
+
+            DispatchQueue.main.async {
+                self.scanning = false
+                url.stopAccessingSecurityScopedResource()
                 self.onComplete?(root, result)
-                self.accessedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
-                self.accessedURLs.removeAll()
             }
         }
     }
 
     func cancel() {
-        shouldCancel = true
-        scanTask?.cancel()
-        accessedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
-        accessedURLs.removeAll()
+        cancelled = true
     }
 
-    private func scanAsync(_ parent: FileNode) async {
-        guard !shouldCancel, !Task.isCancelled else { return }
+    private func scanDir(url: URL, parent: FileNode) {
+        guard !cancelled else { return }
 
         let fm = FileManager.default
-        let url = URL(fileURLWithPath: parent.path)
-
-        guard let contents = try? fm.contentsOfDirectory(
+        guard let items = try? fm.contentsOfDirectory(
             at: url,
-            includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey, .isHiddenKey, .isPackageKey, .contentModificationDateKey, .creationDateKey, .typeIdentifierKey],
-            options: [.skipsHiddenFiles]
+            includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey, .contentModificationDateKey, .creationDateKey, .typeIdentifierKey],
+            options: []
         ) else { return }
 
-        var subdirs: [FileNode] = []
+        var dirs: [URL] = []
 
-        for item in contents {
-            guard !shouldCancel, !Task.isCancelled else { return }
-            let rv = try? item.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey, .isHiddenKey, .isPackageKey, .contentModificationDateKey, .creationDateKey, .typeIdentifierKey])
+        for item in items {
+            guard !cancelled else { return }
+
+            let rv = try? item.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey, .contentModificationDateKey, .creationDateKey, .typeIdentifierKey])
             let isDir = rv?.isDirectory ?? false
+
             let node = FileNode(
                 name: item.lastPathComponent,
                 path: item.path,
@@ -78,30 +76,31 @@ class DiskScanner {
                 modificationDate: rv?.contentModificationDate ?? Date(),
                 creationDate: rv?.creationDate ?? Date(),
                 fileExtension: item.pathExtension,
-                fileType: rv?.typeIdentifier ?? "",
-                isPackage: rv?.isPackage ?? false,
-                isHidden: rv?.isHidden ?? false
+                fileType: rv?.typeIdentifier ?? ""
             )
             parent.addChild(node)
-            if isDir { folderCount += 1; subdirs.append(node) }
-            else { fileCount += 1 }
+
+            if isDir {
+                folderCount += 1
+                dirs.append(item)
+            } else {
+                fileCount += 1
+            }
         }
 
-        await emitProgressIfNeeded()
-
-        for child in subdirs {
-            guard !shouldCancel, !Task.isCancelled else { return }
-            await scanAsync(child)
-        }
-    }
-
-    private func emitProgressIfNeeded() async {
         let now = Date()
-        guard now.timeIntervalSince(lastEmitTime) >= 0.3 else { return }
-        lastEmitTime = now
-        let total = fileCount + folderCount
-        await MainActor.run {
-            self.onProgress?(min(Double(total) / 2000.0, 0.99), total)
+        if now.timeIntervalSince(lastEmit) >= 0.3 {
+            lastEmit = now
+            let total = fileCount + folderCount
+            DispatchQueue.main.async {
+                self.onProgress?(total)
+            }
+        }
+
+        for dir in dirs {
+            guard !cancelled else { return }
+            let child = parent.children.first { $0.path == dir.path }!
+            scanDir(url: dir, parent: child)
         }
     }
 }
