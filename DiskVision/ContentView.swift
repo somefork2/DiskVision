@@ -16,14 +16,12 @@ struct ContentView: View {
                         Color(nsColor: .windowBackgroundColor).ignoresSafeArea()
 
                         if viewModel.isScanning, let root = viewModel.activeRoot {
-                            LiveTreemapView(
+                            LiveTreemapCanvas(
                                 root: root,
                                 size: geo.size,
-                                colorMapper: viewModel.colorMapper,
                                 version: viewModel.scanVersion
                             )
                             .allowsHitTesting(false)
-                            .id(viewModel.scanVersion)
                             .overlay(alignment: .center) { scanOverlay }
 
                         } else if let root = viewModel.rootNode {
